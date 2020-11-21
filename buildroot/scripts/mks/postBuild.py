@@ -8,7 +8,7 @@ import shutil
 print(env)
 
 # Dump construction environments (for debug purpose)
-print(env.Dump())
+#print(env.Dump())
 
 def after_build(source, target, env):
     dst_dir = env['PROJECT_DIR'] + "/Copy to SD Card - MKS/"
@@ -31,6 +31,8 @@ def after_build(source, target, env):
     # Copy BMP folder to SD Card Folder
     src_dir = env['PROJECT_DIR'] + "/Copy to SD Card root directory to update - Unified Menu Material theme/TFT28"
     copy_tree(src_dir, dst_dir + "MKS/")
-    
+    # Copy Language Packs folder to SD Card Folder
+    src_dir = env['PROJECT_DIR'] + "/Copy to SD Card root directory to update - Unified Menu Material theme/Language Packs"
+    copy_tree(src_dir, dst_dir + "Language Packs")   
 env.AddPostAction("buildprog", after_build)
 
