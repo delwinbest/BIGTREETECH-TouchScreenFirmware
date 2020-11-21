@@ -3,6 +3,13 @@ import os
 from distutils.dir_util import copy_tree, remove_tree, mkpath
 import shutil 
 
+
+# access to global construction environment
+print(env)
+
+# Dump construction environments (for debug purpose)
+print(env.Dump())
+
 def after_build(source, target, env):
     dst_dir = env['PROJECT_DIR'] + "/Copy to SD Card - MKS/"
     # Backup Config File
@@ -15,7 +22,7 @@ def after_build(source, target, env):
         mkpath(dst_dir)
     # Copy Bin File to SD Card Folder
     source_filename = env['PROJECT_BUILD_DIR'] + "/" + env['PIOENV'] + "/" + env['PROGNAME'] + ".bin"
-    dst_filename = dst_dir + env['PROGNAME'] + ".bin"
+    dst_filename = dst_dir + "mkstft28.bin"
     shutil.copyfile(source_filename, dst_filename)
      # Restore Config file
     source_filename = env['PROJECT_BUILD_DIR'] + "/" + env['PIOENV'] + "/config.ini"
