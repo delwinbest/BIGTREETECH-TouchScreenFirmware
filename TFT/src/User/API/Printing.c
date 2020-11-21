@@ -4,16 +4,7 @@
 
 PRINTING infoPrinting;
 
-static void (*action_printfinish)() = NULL;
-
 static bool update_waiting = false;
-
-
-//
-void setPrintfinishAction(void (*_printfinish)())
-{
-  action_printfinish = _printfinish;
-}
 
 //
 bool isPrinting(void)
@@ -140,7 +131,6 @@ void setM0Pause(bool m0_pause){
   infoPrinting.m0_pause = m0_pause;
 }
 
-
 bool setPrintPause(bool is_pause, bool is_m0pause)
 {
   static bool pauseLock = false;
@@ -177,7 +167,7 @@ bool setPrintPause(bool is_pause, bool is_m0pause)
         //if pause was triggered through M0/M1 then break
       if(is_m0pause == true) {
         setM0Pause(is_m0pause);
-        popupReminder(DIALOG_TYPE_ALERT, textSelect(LABEL_PAUSE), textSelect(LABEL_M0_PAUSE));
+        popupReminder(DIALOG_TYPE_ALERT, LABEL_PAUSE, LABEL_PAUSE);
         break;
         }
 
@@ -191,7 +181,7 @@ bool setPrintPause(bool is_pause, bool is_m0pause)
         }
         if (coordinateIsKnown())
         {
-          mustStoreCmd("G1 Z%.3f F%d\n", tmp.axis[Z_AXIS] + infoSettings.pause_z_raise, infoSettings.pause_feedrate[E_AXIS]);
+          mustStoreCmd("G1 Z%.3f F%d\n", tmp.axis[Z_AXIS] + infoSettings.pause_z_raise, infoSettings.pause_feedrate[Z_AXIS]);
           mustStoreCmd("G1 X%.3f Y%.3f F%d\n", infoSettings.pause_pos[X_AXIS], infoSettings.pause_pos[Y_AXIS], infoSettings.pause_feedrate[X_AXIS]);
         }
 
@@ -242,7 +232,6 @@ void endPrinting(void)
   switch (infoFile.source)
   {
     case BOARD_SD:
-      printSetUpdateWaiting(infoSettings.m27_active);
       break;
 
     case TFT_UDISK:
@@ -263,8 +252,6 @@ void printingFinished(void)
 {
   BUZZER_PLAY(sound_success);
   endPrinting();
-  if(action_printfinish != NULL)
-    action_printfinish();
   if(infoSettings.auto_off) // Auto shut down after printing
   {
     startShutdown();
@@ -276,6 +263,7 @@ void abortPrinting(void)
   switch (infoFile.source)
   {
     case BOARD_SD:
+      infoHost.printing = false;
       request_M524();
       break;
 
@@ -298,10 +286,10 @@ void shutdown(void)
 {
   for(u8 i = 0; i < infoSettings.fan_count; i++)
   {
-    mustStoreCmd("%s S0\n", fanCmd[i]);
+    if(fanIsType(i, FAN_TYPE_F)) mustStoreCmd("%s S0\n", fanCmd[i]);
   }
   mustStoreCmd("M81\n");
-  popupReminder(DIALOG_TYPE_INFO, textSelect(LABEL_SHUT_DOWN), textSelect(LABEL_SHUTTING_DOWN));
+  popupReminder(DIALOG_TYPE_INFO, LABEL_SHUT_DOWN, LABEL_SHUTTING_DOWN);
 }
 
 void shutdownLoop(void)
@@ -321,14 +309,15 @@ void shutdownLoop(void)
 void startShutdown(void)
 {
   char tempstr[75];
-  my_sprintf(tempstr, (char *)textSelect(LABEL_WAIT_TEMP_SHUT_DOWN), infoSettings.auto_off_temp);
+  labelChar(tempbody, LABEL_WAIT_TEMP_SHUT_DOWN);
+  sprintf(tempstr, tempbody, infoSettings.auto_off_temp);
 
   for(u8 i = 0; i < infoSettings.fan_count; i++)
   {
-    mustStoreCmd("%s S255\n", fanCmd[i]);
+    if(fanIsType(i,FAN_TYPE_F)) mustStoreCmd("%s S255\n", fanCmd[i]);
   }
-  showDialog(DIALOG_TYPE_INFO,textSelect(LABEL_SHUT_DOWN), (u8 *)tempstr,
-              textSelect(LABEL_FORCE_SHUT_DOWN), textSelect(LABEL_CANCEL), shutdown, NULL, shutdownLoop);
+  setDialogText(LABEL_SHUT_DOWN, (u8 *)tempstr, LABEL_FORCE_SHUT_DOWN, LABEL_CANCEL);
+  showDialog(DIALOG_TYPE_INFO, shutdown, NULL, shutdownLoop);
 }
 
 
@@ -397,18 +386,50 @@ void breakAndContinue(void)
    Serial_Puts(SERIAL_PORT, "M108\n");
 }
 
+void resumeAndPurge(void)
+{
+   Serial_Puts(SERIAL_PORT, "M876 S0\n");
+}
+
+void resumeAndContinue(void)
+{
+   Serial_Puts(SERIAL_PORT, "M876 S1\n");
+}
+
+bool hasPrintingMenu(void)
+{
+  for (uint8_t i = 0; i <= infoMenu.cur; i++) {
+    if (infoMenu.menu[i] == menuPrinting) return true;
+  }
+  return false;
+}
+
 void loopCheckPrinting(void)
 {
-  static u32  nextTime=0;
-  u32 update_time = infoSettings.m27_refresh_time * 1000;
+  #if defined(ST7920_SPI) || defined(LCD2004_simulator)
+    if(infoMenu.menu[infoMenu.cur] == menuMarlinMode) return;
+  #endif
+
+  if (infoHost.printing && !infoPrinting.printing) {
+    infoPrinting.printing = true;
+    if (!hasPrintingMenu())
+      infoMenu.menu[++infoMenu.cur] = menuPrinting;
+  }
+
+  if (infoFile.source != BOARD_SD) return;
+  if (infoMachineSettings.autoReportSDStatus == ENABLED) return;
+  if (!infoSettings.m27_active && !infoPrinting.printing) return;
+
+  static uint32_t  nextTime=0;
+  uint32_t update_time = infoSettings.m27_refresh_time * 1000;
   do
   {  /* WAIT FOR M27  */
-    if(update_waiting == true) {nextTime=OS_GetTimeMs()+update_time; break;}
+    if(update_waiting == true) {nextTime = OS_GetTimeMs() + update_time; break;}
     if(OS_GetTimeMs() < nextTime) break;
 
-    if(storeCmd("M27\n")==false) break;
+    if(storeCmd("M27\n") == false) break;
 
-    nextTime=OS_GetTimeMs()+update_time;
-    update_waiting=true;
+    nextTime = OS_GetTimeMs() + update_time;
+    update_waiting = true;
   }while(0);
 }

@@ -22,10 +22,9 @@ void mcu_GetClocksFreq(CLOCKS *clk)
 
 void Hardware_GenericInit(void)
 {
-	mcu_GetClocksFreq(&mcuClocks);
+  mcu_GetClocksFreq(&mcuClocks);
   NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);
   Delay_init();
-  OS_TimerInitMs();  // System clock timer, cycle 1ms
 
   #ifdef DISABLE_JTAG
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_AFIO, ENABLE);
@@ -37,24 +36,34 @@ void Hardware_GenericInit(void)
     GPIO_PinRemapConfig(GPIO_Remap_SWJ_Disable, ENABLE); //disable JTAG & SWD
   #endif
 
-  #ifdef MKS_32_V1_4
+  #if defined(MKS_32_V1_4) || (defined MKS_28_V1_0)
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_AFIO, ENABLE);
     GPIO_PinRemapConfig(GPIO_Remap_USART2, ENABLE);
   #endif
 
   XPT2046_Init();
+  OS_TimerInitMs();         // System clock timer, cycle 1ms, called after XPT2046_Init()
   W25Qxx_Init();
   LCD_Init();
-  readStoredPara(); // Read settings parameter
-  LCD_RefreshDirection();  //refresh display direction after reading settings
-  scanUpdates();           // scan icon, fonts and config files
+  readStoredPara();         // Read settings parameter
+  LCD_RefreshDirection();   // refresh display direction after reading settings
+  scanUpdates();            // scan icon, fonts and config files
+  checkflashSign();         // check font/icon/config signature in SPI flash for update
 
-  #ifndef MKS_32_V1_4
+  #ifdef LED_COLOR_PIN
+    knob_LED_Init();
+  #endif
+
+  #if !defined(MKS_32_V1_4) && (!defined MKS_28_V1_0)
     //causes hang if we deinit spi1
     SD_DeInit();
   #endif
+
   #if LCD_ENCODER_SUPPORT
     HW_EncoderInit();
+  #endif
+  #if ENC_ACTIVE_SIGNAL
+    HW_EncActiveSignalInit();
   #endif
 
   #ifdef PS_ON_PIN
@@ -63,10 +72,6 @@ void Hardware_GenericInit(void)
 
   #ifdef FIL_RUNOUT_PIN
     FIL_Runout_Init();
-  #endif
-
-  #ifdef LED_COLOR_PIN
-    knob_LED_Init();
   #endif
 
   #ifdef U_DISK_SUPPORT
@@ -83,12 +88,12 @@ void Hardware_GenericInit(void)
     storePara();
   }
 
-  printSetUpdateWaiting(infoSettings.m27_active);
   #ifdef LCD_LED_PWM_CHANNEL
     Set_LCD_Brightness(LCD_BRIGHTNESS[infoSettings.lcd_brightness]);
   #endif
   GUI_RestoreColorDefault();
   infoMenuSelect();
+  fanControlInit();
 }
 
 int main(void)

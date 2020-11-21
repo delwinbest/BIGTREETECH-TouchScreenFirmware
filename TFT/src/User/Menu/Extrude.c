@@ -1,21 +1,6 @@
 #include "Extrude.h"
 #include "includes.h"
 
-// 1 title, ITEM_PER_PAGE items (icon + label)
-MENUITEMS extrudeItems = {
-// title
-LABEL_EXTRUDE,
-// icon                       label
- {{ICON_UNLOAD,               LABEL_UNLOAD},
-  {ICON_BACKGROUND,           LABEL_BACKGROUND},
-  {ICON_BACKGROUND,           LABEL_BACKGROUND},
-  {ICON_LOAD,                 LABEL_LOAD},
-  {ICON_NOZZLE,               LABEL_NOZZLE},
-  {ICON_E_5_MM,               LABEL_5_MM},
-  {ICON_NORMAL_SPEED,         LABEL_NORMAL_SPEED},
-  {ICON_BACK,                 LABEL_BACK},}
-};
-
 static u8  item_extruder_i = 0;
 
 #define ITEM_SPEED_NUM 3
@@ -72,6 +57,20 @@ void menuExtrude(void)
   bool  eRelative = false;
   u32   feedrate = 0;
 
+  MENUITEMS extrudeItems = {
+  // title
+  LABEL_EXTRUDE,
+  // icon                       label
+  {{ICON_UNLOAD,               LABEL_UNLOAD},
+    {ICON_BACKGROUND,           LABEL_BACKGROUND},
+    {ICON_BACKGROUND,           LABEL_BACKGROUND},
+    {ICON_LOAD,                 LABEL_LOAD},
+    {ICON_NOZZLE,               LABEL_NOZZLE},
+    {ICON_E_5_MM,               LABEL_5_MM},
+    {ICON_NORMAL_SPEED,         LABEL_NORMAL_SPEED},
+    {ICON_BACK,                 LABEL_BACK},}
+  };
+
   while(infoCmd.count != 0) {loopProcess();}
   extrudeCoordinate = eTemp = eSaved = coordinateGetAxisTarget(E_AXIS);
   feedrate = coordinateGetFeedRate();
@@ -92,7 +91,18 @@ void menuExtrude(void)
       case KEY_ICON_0:
         eTemp -= item_len[item_len_i];
         break;
-
+      case KEY_INFOBOX:
+      {
+        float val = 0;
+        char titlestr[30];
+        sprintf(titlestr, "Min:%i | Max:%i",(item_len[COUNT(item_len)-1]) * -1, item_len[COUNT(item_len)-1]);
+        val = numPadFloat((u8 *)titlestr,0,0,true);
+        eTemp += val;
+        
+        menuDrawPage(&extrudeItems);
+        extrudeCoordinateReDraw(false);
+        break;
+      }
       case KEY_ICON_3:
         eTemp += item_len[item_len_i];
         break;
